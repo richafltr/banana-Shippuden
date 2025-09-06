@@ -136,3 +136,26 @@ const result = await fal.subscribe("fal-ai/nano-banana/edit", {
 console.log(result.data);
 console.log(result.requestId);
 ```
+
+# Veo victory
+```js
+import { fal } from "@fal-ai/client";
+
+const result = await fal.subscribe("fal-ai/veo3/fast/image-to-video", {
+  input: {
+    prompt: "Player 2 is victorious, and camera pans in on her as she says her victory catchphrase",
+    image_url: "blob:https://fal.ai/81be0aae-efd6-477e-9074-6cd0fd44ef10",
+    duration: "8s",
+    generate_audio: true,
+    resolution: "720p"
+  },
+  logs: true,
+  onQueueUpdate: (update) => {
+    if (update.status === "IN_PROGRESS") {
+      update.logs.map((log) => log.message).forEach(console.log);
+    }
+  },
+});
+console.log(result.data);
+console.log(result.requestId);
+```
