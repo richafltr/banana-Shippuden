@@ -4,8 +4,10 @@ import type React from "react"
 import { useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
-import { Upload, User, X, Moon, Sun, Loader2, Swords } from "lucide-react"
+import { Upload, User, X, Moon, Sun, Loader2 } from "lucide-react"
 import { useTheme } from "next-themes"
+import BattleVideoPlayer from "@/components/BattleVideoPlayer"
+import { storeBattleData, getBattleData, exportBattleDataAsJSON } from "@/lib/battleStorage"
 
 // Animated Banana Component
 const BananaIcon = ({ className, isAnimating }: { className?: string; isAnimating?: boolean }) => (
@@ -43,6 +45,7 @@ export default function BattleShowdown() {
   const { theme, setTheme } = useTheme()
   const [isRolling, setIsRolling] = useState(false)
   const [isTransforming, setIsTransforming] = useState(false)
+  const [showBattleVideo, setShowBattleVideo] = useState(false)
   const [player1, setPlayer1] = useState<PlayerProfile>({
     id: "player1",
     image: null,
@@ -93,25 +96,6 @@ export default function BattleShowdown() {
     return data.url
   }
 
-  const transformImage = async (imageUrl: string, action: string, playerId: string) => {
-    const response = await fetch('/api/transform', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        imageUrl,
-        action,
-        playerId,
-      }),
-    })
-
-    if (!response.ok) {
-      throw new Error('Transform failed')
-    }
-
-    return response.json()
-  }
 
   const handleDrop = useCallback(async (e: React.DragEvent, playerId: string) => {
     e.preventDefault()
@@ -202,6 +186,19 @@ export default function BattleShowdown() {
     }
   }, [])
 
+  // Store battle sequence data globally
+  const [battleSequenceData, setBattleSequenceData] = useState<{
+    player1Stance: string | null
+    player2Stance: string | null
+    versusScreen: string | null
+    battleArena: string | null
+  }>({
+    player1Stance: null,
+    player2Stance: null,
+    versusScreen: null,
+    battleArena: null
+  })
+
   const handleTransformToNaruto = async () => {
     if (!player1.originalImage || !player2.originalImage) {
       alert('Please upload images for both players first!')
@@ -211,90 +208,180 @@ export default function BattleShowdown() {
     setIsTransforming(true)
 
     try {
-      // Transform both players in parallel
-      const [player1Result, player2Result] = await Promise.all([
-        transformImage(player1.originalImage, 'naruto-transform', 'player1'),
-        transformImage(player2.originalImage, 'naruto-transform', 'player2')
-      ])
+      // Generate EVERYTHING concurrently: stances, versus screen, and battle arena
+      console.log('🚀 Generating complete battle sequence...')
+      
+      const response = await fetch('/api/battle', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          action: 'prepare-battle-sequence',
+          player1Image: player1.originalImage,
+          player2Image: player2.originalImage
+        })
+      })
 
-      // Update player 1 with transformed images
-      setPlayer1(prev => ({
-        ...prev,
-        transformedImages: player1Result.images.map((img: any) => img.url)
-      }))
+      if (!response.ok) {
+        throw new Error('Failed to prepare battle sequence')
+      }
 
-      // Update player 2 with transformed images
-      setPlayer2(prev => ({
-        ...prev,
-        transformedImages: player2Result.images.map((img: any) => img.url)
-      }))
+      const result = await response.json()
+      console.log('Battle sequence ready:', result)
 
-      // Auto-select first transformed image for display
-      if (player1Result.images.length > 0) {
+      // Store all battle data
+      const battleData = {
+        player1Stance: result.stances?.find((s: any) => s.player === 'player1')?.url || null,
+        player2Stance: result.stances?.find((s: any) => s.player === 'player2')?.url || null,
+        versusScreen: result.versusScreen,
+        battleArena: result.battleArena
+      }
+      
+      setBattleSequenceData(battleData)
+      
+      // Store locally and export as JSON
+      storeBattleData(battleData)
+      const jsonExport = exportBattleDataAsJSON({ ...battleData, timestamp: Date.now() })
+      console.log('Battle sequence JSON:', JSON.stringify(jsonExport, null, 2))
+
+      // Update player displays with battle stances
+      const player1StanceUrl = result.stances?.find((s: any) => s.player === 'player1')?.url
+      const player2StanceUrl = result.stances?.find((s: any) => s.player === 'player2')?.url
+
+      if (player1StanceUrl) {
         setPlayer1(prev => ({
           ...prev,
-          image: player1Result.images[0].url
+          transformedImages: [player1StanceUrl],
+          image: player1StanceUrl,
+          battleImage: player1StanceUrl
         }))
       }
 
-      if (player2Result.images.length > 0) {
+      if (player2StanceUrl) {
         setPlayer2(prev => ({
           ...prev,
-          image: player2Result.images[0].url
+          transformedImages: [player2StanceUrl],
+          image: player2StanceUrl,
+          battleImage: player2StanceUrl
         }))
       }
+
+      console.log('✨ Battle sequence complete! All assets ready.')
     } catch (error) {
       console.error('Transform error:', error)
-      alert('Failed to transform images. Please try again.')
+      alert('Failed to prepare battle sequence. Please try again.')
     } finally {
       setIsTransforming(false)
     }
   }
 
   const handleBattle = async () => {
-    if (!player1.image || !player2.image) {
-      alert('Please upload and transform images for both players first!')
+    if (!player1.originalImage || !player2.originalImage) {
+      alert('Please upload images for both players first!')
       return
     }
 
-    setIsRolling(true)
-    
-    try {
-      // Prepare battle stances for both players
-      const [player1Battle, player2Battle] = await Promise.all([
-        transformImage(player1.image, 'battle-stance-left', 'player1'),
-        transformImage(player2.image, 'battle-stance-right', 'player2')
-      ])
+    // If battle sequence not ready, generate it now
+    if (!battleSequenceData.battleArena) {
+      setIsRolling(true)
+      
+      try {
+        console.log('🚀 Generating complete battle sequence...')
+        
+        const response = await fetch('/api/battle', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            action: 'prepare-battle-sequence',
+            player1Image: player1.originalImage,
+            player2Image: player2.originalImage
+          })
+        })
 
-      // Update players with battle images
-      setPlayer1(prev => ({
-        ...prev,
-        battleImage: player1Battle.images[0]?.url || prev.image
-      }))
+        if (!response.ok) {
+          throw new Error('Failed to prepare battle sequence')
+        }
 
-      setPlayer2(prev => ({
-        ...prev,
-        battleImage: player2Battle.images[0]?.url || prev.image
-      }))
+        const result = await response.json()
+        console.log('Battle sequence ready:', result)
 
-      // Simulate battle result
-      setTimeout(() => {
+        // Store all battle data
+        const battleData = {
+          player1Stance: result.stances?.find((s: any) => s.player === 'player1')?.url || null,
+          player2Stance: result.stances?.find((s: any) => s.player === 'player2')?.url || null,
+          versusScreen: result.versusScreen,
+          battleArena: result.battleArena
+        }
+        
+        setBattleSequenceData(battleData)
+        
+        // Store locally and export as JSON
+        storeBattleData(battleData)
+        const jsonExport = exportBattleDataAsJSON({ ...battleData, timestamp: Date.now() })
+        console.log('Battle sequence JSON:', JSON.stringify(jsonExport, null, 2))
+
+        // Update player displays with battle stances
+        const player1StanceUrl = result.stances?.find((s: any) => s.player === 'player1')?.url
+        const player2StanceUrl = result.stances?.find((s: any) => s.player === 'player2')?.url
+
+        if (player1StanceUrl) {
+          setPlayer1(prev => ({
+            ...prev,
+            transformedImages: [player1StanceUrl],
+            image: player1StanceUrl,
+            battleImage: player1StanceUrl
+          }))
+        }
+
+        if (player2StanceUrl) {
+          setPlayer2(prev => ({
+            ...prev,
+            transformedImages: [player2StanceUrl],
+            image: player2StanceUrl,
+            battleImage: player2StanceUrl
+          }))
+        }
+      } catch (error) {
+        console.error('Battle preparation error:', error)
+        alert('Failed to prepare battle. Please try again.')
         setIsRolling(false)
-        // Add battle logic here
-      }, 2000)
-    } catch (error) {
-      console.error('Battle preparation error:', error)
-      setIsRolling(false)
+        return
+      }
     }
+    
+    // Short animation then show video with pre-loaded data
+    setIsRolling(true)
+    setTimeout(() => {
+      setIsRolling(false)
+      setShowBattleVideo(true)
+    }, 1000)
+  }
+
+  const handleCloseBattleVideo = () => {
+    setShowBattleVideo(false)
   }
 
   const renderPlayerCard = (player: PlayerProfile, setPlayer: React.Dispatch<React.SetStateAction<PlayerProfile>>) => {
     const isInBattleMode = !!player.battleImage
-    const cardSize = isInBattleMode ? "w-80 h-80 md:w-96 md:h-96" : "w-64 h-64 md:w-72 md:h-72"
+    const isTransformed = player.transformedImages.length > 0
+    const canTransform = player1.originalImage && player2.originalImage && !isTransformed && !isTransforming
+    
+    // Dynamic sizing based on state
+    let cardSize
+    if (isInBattleMode) {
+      cardSize = "w-56 h-80 md:w-64 md:h-96 lg:w-72 lg:h-[26rem]" // Pokemon card ratio for battle
+    } else if (isTransformed) {
+      cardSize = "w-56 h-56 md:w-64 md:h-64 lg:w-72 lg:h-72" // Bigger squares after transformation
+    } else {
+      cardSize = "w-48 h-48 md:w-56 md:h-56" // Initial smaller squares
+    }
     
     return (
       <div className={`flex flex-col items-center space-y-4 transition-all duration-700 ${
-        isInBattleMode ? "scale-110" : ""
+        isInBattleMode ? "scale-105" : isTransformed ? "scale-105" : ""
       }`}>
         <Card
           className={`${cardSize} border-2 transition-all duration-700 relative transform backdrop-blur-md ${
@@ -310,9 +397,9 @@ export default function BattleShowdown() {
         >
           <div className="w-full h-full flex items-center justify-center relative overflow-hidden rounded-lg bg-black/20 backdrop-blur-sm">
             {player.isProcessing ? (
-              <div className="flex flex-col items-center space-y-3">
-                <Loader2 className="h-12 w-12 animate-spin text-orange-400" />
-                <span className="text-base text-white/70">Uploading...</span>
+              <div className="flex flex-col items-center space-y-2">
+                <Loader2 className="h-8 w-8 animate-spin text-orange-400" />
+                <span className="text-sm text-white/70">Uploading...</span>
               </div>
             ) : player.battleImage ? (
               <>
@@ -321,8 +408,8 @@ export default function BattleShowdown() {
                   alt="Battle stance"
                   className="w-full h-full object-cover animate-pulse-slow"
                 />
-                <div className="absolute top-3 right-3 bg-gradient-to-r from-red-600 to-orange-600 text-white px-4 py-2 rounded-lg text-sm md:text-base font-bold shadow-lg animate-bounce">
-                  ⚔️ BATTLE MODE ⚔️
+                <div className="absolute top-2 left-2 right-2 bg-gradient-to-r from-red-600 to-orange-600 text-white px-3 py-1.5 rounded-lg text-xs md:text-sm font-bold shadow-lg animate-pulse text-center">
+                  ⚔️ BATTLE ⚔️
                 </div>
                 <div className="absolute inset-0 bg-gradient-to-t from-red-900/40 via-transparent to-transparent pointer-events-none" />
               </>
@@ -341,26 +428,68 @@ export default function BattleShowdown() {
                 >
                   <X className="h-5 w-5" />
                 </Button>
-                {player.transformedImages.length > 0 && (
-                  <div className="absolute bottom-3 left-3 right-3 flex gap-2 justify-center">
-                    {player.transformedImages.slice(0, 3).map((img, idx) => (
-                      <button
-                        key={idx}
-                        onClick={() => setPlayer(prev => ({ ...prev, image: img }))}
-                        className="w-14 h-14 md:w-16 md:h-16 rounded-lg border-3 border-white/90 overflow-hidden hover:scale-125 transition-all duration-300 shadow-lg hover:shadow-xl hover:z-10"
-                      >
-                        <img src={img} alt={`Variant ${idx + 1}`} className="w-full h-full object-cover" />
-                      </button>
-                    ))}
-                  </div>
-                )}
+              {/* Banana Transform Slider */}
+              {canTransform && (
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <button
+                    onClick={handleTransformToNaruto}
+                    className="group relative"
+                    disabled={isTransforming}
+                  >
+                    <div className="relative">
+                      {/* Glowing background */}
+                      <div className="absolute inset-0 bg-gradient-to-r from-yellow-400/40 to-orange-400/40 rounded-full blur-2xl group-hover:from-yellow-400/60 group-hover:to-orange-400/60 transition-all animate-pulse" />
+                      
+                      {/* Banana icon */}
+                      <div className={`relative text-6xl md:text-7xl transform transition-all duration-500 ${
+                        isTransforming ? 'animate-spin' : 'group-hover:rotate-12 group-hover:scale-125'
+                      }`}>
+                        🍌
+                      </div>
+                      
+                      {/* Slide indicator */}
+                      {!isTransforming && (
+                        <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center">
+                          <div className="text-white/90 text-sm font-bold mb-1">Swipe</div>
+                          <div className="flex gap-1">
+                            <div className="w-8 h-0.5 bg-white/40 rounded-full animate-pulse" />
+                            <div className="w-8 h-0.5 bg-white/60 rounded-full animate-pulse animation-delay-100" />
+                            <div className="w-8 h-0.5 bg-white/80 rounded-full animate-pulse animation-delay-200" />
+                          </div>
+                        </div>
+                      )}
+                      
+                      {isTransforming && (
+                        <div className="absolute -bottom-10 left-1/2 -translate-x-1/2">
+                          <span className="text-white/90 text-sm font-bold animate-pulse">
+                            Transforming...
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                </div>
+              )}
+              {player.transformedImages.length > 0 && (
+                <div className="absolute bottom-3 left-3 right-3 flex gap-2 justify-center">
+                  {player.transformedImages.slice(0, 3).map((img, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => setPlayer(prev => ({ ...prev, image: img }))}
+                      className="w-14 h-14 md:w-16 md:h-16 lg:w-20 lg:h-20 rounded-lg border-3 border-white/90 overflow-hidden hover:scale-125 transition-all duration-300 shadow-lg hover:shadow-xl hover:z-10"
+                    >
+                      <img src={img} alt={`Variant ${idx + 1}`} className="w-full h-full object-cover" />
+                    </button>
+                  ))}
+                </div>
+              )}
               </>
             ) : (
-              <div className="flex flex-col items-center space-y-4 text-white/70">
-                <User size={72} />
-                <Upload size={36} />
-                <span className="text-base md:text-lg text-center px-4 font-medium">
-                  Drag & drop or click to upload
+              <div className="flex flex-col items-center space-y-3 text-white/70">
+                <User size={48} />
+                <Upload size={28} />
+                <span className="text-sm md:text-base text-center px-3 font-medium">
+                  Drag & drop or click
                 </span>
               </div>
             )}
@@ -379,6 +508,14 @@ export default function BattleShowdown() {
 
   return (
     <div className="min-h-screen relative overflow-hidden">
+      {/* Battle Video Player Overlay */}
+      {showBattleVideo && battleSequenceData.battleArena && (
+        <BattleVideoPlayer
+          battleData={battleSequenceData}
+          onClose={handleCloseBattleVideo}
+        />
+      )}
+
       {/* Background with video and gradient fallback */}
       <div className="fixed inset-0 z-0">
         {/* Gradient background (always visible) */}
@@ -403,8 +540,10 @@ export default function BattleShowdown() {
         <div className="absolute inset-0 bg-black/30" />
       </div>
 
-      {/* Content */}
-      <div className="relative z-10 min-h-screen">
+      {/* Content - fade out when battle video is playing */}
+      <div className={`relative z-10 min-h-screen transition-all duration-1000 ${
+        showBattleVideo ? 'opacity-0 pointer-events-none' : 'opacity-100'
+      }`}>
         {/* Dark Mode Toggle */}
         <div className="absolute top-4 right-4 z-20">
           <Button
@@ -454,28 +593,6 @@ export default function BattleShowdown() {
               </h2>
             </div>
 
-          {/* Transform Button */}
-          {player1.originalImage && player2.originalImage && player1.transformedImages.length === 0 && (
-            <div className="flex justify-center mb-12">
-              <Button
-                onClick={handleTransformToNaruto}
-                disabled={isTransforming}
-                className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-8 py-4 text-xl font-bold rounded-xl shadow-xl transform transition-all duration-300 hover:scale-105"
-              >
-                {isTransforming ? (
-                  <>
-                    <Loader2 className="mr-3 h-6 w-6 animate-spin" />
-                    Transforming to Shinobi...
-                  </>
-                ) : (
-                  <>
-                    <Swords className="mr-3 h-6 w-6" />
-                    Transform to Naruto Characters
-                  </>
-                )}
-              </Button>
-            </div>
-          )}
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12 items-center place-items-center">
             {/* Player 1 */}
