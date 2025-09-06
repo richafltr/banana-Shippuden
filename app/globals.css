@@ -141,25 +141,56 @@
   animation-delay: 400ms;
 }
 
-/* Custom dice rolling animation */
-@keyframes dice-roll {
-  0% {
-    transform: rotate(0deg) scale(1);
+/* Custom banana spin animation */
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
   }
-  25% {
-    transform: rotate(90deg) scale(1.1);
-  }
-  50% {
-    transform: rotate(180deg) scale(1);
-  }
-  75% {
-    transform: rotate(270deg) scale(1.1);
-  }
-  100% {
-    transform: rotate(360deg) scale(1);
+  to {
+    transform: rotate(360deg);
   }
 }
 
-.animate-dice-roll {
-  animation: dice-roll 0.6s cubic-bezier(0.68, -0.55, 0.265, 1.55) infinite;
+/* Custom slow pulse animation for battle mode */
+@keyframes pulse-slow {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.85;
+  }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 3s ease-in-out infinite;
+}
+
+/* Title glow animation */
+@keyframes title-glow {
+  0%, 100% {
+    filter: drop-shadow(0 4px 8px rgba(0, 0, 0, 0.8)) drop-shadow(0 0 20px rgba(251, 146, 60, 0.4));
+    transform: perspective(500px) rotateY(-5deg) scale(1);
+  }
+  50% {
+    filter: drop-shadow(0 4px 12px rgba(0, 0, 0, 0.9)) drop-shadow(0 0 35px rgba(251, 146, 60, 0.7));
+    transform: perspective(500px) rotateY(-5deg) scale(1.02);
+  }
+}
+
+.animate-title-glow {
+  animation: title-glow 4s ease-in-out infinite;
+}
+
+/* Custom border widths */
+.border-3 {
+  border-width: 3px;
+}
+
+/* Battle mode glow effect */
+.ring-red-500\/20 {
+  --tw-ring-color: rgb(239 68 68 / 0.2);
+}
+
+.dark .ring-red-400\/20 {
+  --tw-ring-color: rgb(248 113 113 / 0.2);
 }
