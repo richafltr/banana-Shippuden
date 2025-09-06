@@ -137,6 +137,29 @@ console.log(result.data);
 console.log(result.requestId);
 ```
 
+# Veo fight start
+```js
+import { fal } from "@fal-ai/client";
+
+const result = await fal.subscribe("fal-ai/veo3/fast/image-to-video", {
+  input: {
+    prompt: "The warriors charge at each other with incredible speed, energy crackling Health meters showing. Lots of acrobatic ninjutsu spells. Remove \"Fight\" from the top.",
+    image_url: "blob:https://fal.ai/cadd4a89-0644-4916-a1dc-be305edd17fb",
+    duration: "8s",
+    generate_audio: true,
+    resolution: "720p"
+  },
+  logs: true,
+  onQueueUpdate: (update) => {
+    if (update.status === "IN_PROGRESS") {
+      update.logs.map((log) => log.message).forEach(console.log);
+    }
+  },
+});
+console.log(result.data);
+console.log(result.requestId);
+```
+
 # Veo victory
 ```js
 import { fal } from "@fal-ai/client";
