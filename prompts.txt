@@ -1,0 +1,9 @@
+# Person -> Character
+
+Reimagine the person to cosplay as a Naruto shinobi character with weapons, ninja accessories, outfit, and headband. Realistic 3D graphics rendered in Unreal Engine.
+
+# Player 1 rendered
+Remove the background, turn left, facing left, fighting pose
+
+# Player 2 rendered
+Remove the background, turn right, facing right, fighting pose
