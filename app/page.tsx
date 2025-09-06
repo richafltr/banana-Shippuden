@@ -7,60 +7,25 @@ import { Card } from "@/components/ui/card"
 import { Upload, User, X, Moon, Sun, Loader2, Swords } from "lucide-react"
 import { useTheme } from "next-themes"
 
-// Animated Dice SVG Component
-const DiceIcon = ({ className, isAnimating }: { className?: string; isAnimating?: boolean }) => (
-  <svg 
-    xmlns="http://www.w3.org/2000/svg" 
-    viewBox="0 0 24 24" 
-    fill="none" 
-    stroke="currentColor" 
-    strokeWidth="1.5" 
-    strokeLinecap="round" 
-    strokeLinejoin="round" 
-    className={`${className} ${isAnimating ? 'animate-dice-roll' : ''}`}
+// Animated Banana Component
+const BananaIcon = ({ className, isAnimating }: { className?: string; isAnimating?: boolean }) => (
+  <div 
+    className={`${className} relative transition-all duration-500`}
+    style={{
+      animation: isAnimating ? 'spin 1s linear infinite' : undefined,
+    }}
   >
-    <rect 
-      width="12" 
-      height="12" 
-      x="2" 
-      y="10" 
-      rx="2" 
-      ry="2"
-      className={isAnimating ? "animate-pulse" : ""}
-    />
-    <path 
-      d="m17.92 14 3.5-3.5a2.24 2.24 0 0 0 0-3l-5-4.92a2.24 2.24 0 0 0-3 0L10 6"
-      className={isAnimating ? "animate-pulse animation-delay-200" : ""}
-    />
-    <circle 
-      cx="6" 
-      cy="18" 
-      r="0.8" 
-      fill="currentColor"
-      className={isAnimating ? "animate-bounce animation-delay-100" : ""}
-    />
-    <circle 
-      cx="10" 
-      cy="14" 
-      r="0.8" 
-      fill="currentColor"
-      className={isAnimating ? "animate-bounce animation-delay-200" : ""}
-    />
-    <circle 
-      cx="15" 
-      cy="6" 
-      r="0.8" 
-      fill="currentColor"
-      className={isAnimating ? "animate-bounce animation-delay-300" : ""}
-    />
-    <circle 
-      cx="18" 
-      cy="9" 
-      r="0.8" 
-      fill="currentColor"
-      className={isAnimating ? "animate-bounce animation-delay-400" : ""}
-    />
-  </svg>
+    <span 
+      className="text-8xl md:text-9xl lg:text-[10rem] block cursor-pointer select-none"
+      style={{
+        filter: 'drop-shadow(0 0 30px rgba(251, 191, 36, 0.7)) drop-shadow(0 4px 10px rgba(0, 0, 0, 0.4))',
+        transform: 'rotate(-15deg) perspective(500px) rotateY(10deg)',
+        display: 'inline-block'
+      }}
+    >
+      🍌
+    </span>
+  </div>
 )
 
 interface PlayerProfile {
@@ -323,124 +288,188 @@ export default function BattleShowdown() {
     }
   }
 
-  const renderPlayerCard = (player: PlayerProfile, setPlayer: React.Dispatch<React.SetStateAction<PlayerProfile>>) => (
-    <div className="flex flex-col items-center space-y-4">
-      <h2 className="text-xl font-semibold text-gray-800 dark:text-gray-100">{player.name}</h2>
-      <Card
-        className={`w-48 h-48 border-2 transition-all duration-200 relative ${
-          dragOver === player.id 
-            ? "border-blue-500 dark:border-blue-400 scale-105 shadow-lg" 
-            : "border-gray-200 dark:border-gray-700"
-        }`}
-        onDragOver={(e) => handleDragOver(e, player.id)}
-        onDragLeave={handleDragLeave}
-        onDrop={(e) => handleDrop(e, player.id)}
-      >
-        <div className="w-full h-full flex items-center justify-center relative overflow-hidden rounded-lg bg-gray-50 dark:bg-gray-900">
-          {player.isProcessing ? (
-            <div className="flex flex-col items-center space-y-2">
-              <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-              <span className="text-sm text-gray-500">Uploading...</span>
-            </div>
-          ) : player.battleImage ? (
-            <>
-              <img
-                src={player.battleImage}
-                alt={`${player.name} Battle`}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute top-1 right-1 bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">
-                BATTLE MODE
+  const renderPlayerCard = (player: PlayerProfile, setPlayer: React.Dispatch<React.SetStateAction<PlayerProfile>>) => {
+    const isInBattleMode = !!player.battleImage
+    const cardSize = isInBattleMode ? "w-80 h-80 md:w-96 md:h-96" : "w-64 h-64 md:w-72 md:h-72"
+    
+    return (
+      <div className={`flex flex-col items-center space-y-4 transition-all duration-700 ${
+        isInBattleMode ? "scale-110" : ""
+      }`}>
+        <Card
+          className={`${cardSize} border-2 transition-all duration-700 relative transform backdrop-blur-md ${
+            dragOver === player.id 
+              ? "border-orange-400 scale-105 shadow-2xl bg-white/20" 
+              : isInBattleMode 
+                ? "border-red-500 shadow-2xl ring-4 ring-red-500/30 bg-black/40"
+                : "border-white/30 shadow-lg hover:shadow-xl bg-white/10 hover:bg-white/15"
+          }`}
+          onDragOver={(e) => handleDragOver(e, player.id)}
+          onDragLeave={handleDragLeave}
+          onDrop={(e) => handleDrop(e, player.id)}
+        >
+          <div className="w-full h-full flex items-center justify-center relative overflow-hidden rounded-lg bg-black/20 backdrop-blur-sm">
+            {player.isProcessing ? (
+              <div className="flex flex-col items-center space-y-3">
+                <Loader2 className="h-12 w-12 animate-spin text-orange-400" />
+                <span className="text-base text-white/70">Uploading...</span>
               </div>
-            </>
-          ) : player.image ? (
-            <>
+            ) : player.battleImage ? (
+              <>
+                <img
+                  src={player.battleImage}
+                  alt="Battle stance"
+                  className="w-full h-full object-cover animate-pulse-slow"
+                />
+                <div className="absolute top-3 right-3 bg-gradient-to-r from-red-600 to-orange-600 text-white px-4 py-2 rounded-lg text-sm md:text-base font-bold shadow-lg animate-bounce">
+                  ⚔️ BATTLE MODE ⚔️
+                </div>
+                <div className="absolute inset-0 bg-gradient-to-t from-red-900/40 via-transparent to-transparent pointer-events-none" />
+              </>
+            ) : player.image ? (
+              <>
               <img
                 src={player.image}
-                alt={player.name}
-                className="w-full h-full object-cover"
+                alt="Player avatar"
+                className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
               />
-              <Button
-                variant="destructive"
-                size="icon"
-                className="absolute top-2 right-2 h-8 w-8 rounded-full opacity-0 hover:opacity-100 transition-opacity"
-                onClick={() => handleRemoveImage(player.id)}
-              >
-                <X className="h-4 w-4" />
-              </Button>
-              {player.transformedImages.length > 0 && (
-                <div className="absolute bottom-2 left-2 right-2 flex gap-1">
-                  {player.transformedImages.slice(0, 3).map((img, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => setPlayer(prev => ({ ...prev, image: img }))}
-                      className="w-10 h-10 rounded border-2 border-white overflow-hidden hover:scale-110 transition-transform"
-                    >
-                      <img src={img} alt={`Variant ${idx + 1}`} className="w-full h-full object-cover" />
-                    </button>
-                  ))}
-                </div>
-              )}
-            </>
-          ) : (
-            <div className="flex flex-col items-center space-y-2 text-gray-500 dark:text-gray-400">
-              <User size={48} />
-              <Upload size={24} />
-              <span className="text-sm text-center px-2 font-medium">
-                Drag & drop or click to upload
-              </span>
-            </div>
-          )}
-          <input
-            type="file"
-            accept="image/*"
-            onChange={(e) => handleFileSelect(e, player.id)}
-            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
-            style={{ display: player.image && !player.isProcessing ? 'none' : 'block' }}
-          />
-        </div>
-      </Card>
-    </div>
-  )
+                <Button
+                  variant="destructive"
+                  size="icon"
+                  className="absolute top-3 right-3 h-10 w-10 rounded-full opacity-0 hover:opacity-100 transition-all duration-300 shadow-lg"
+                  onClick={() => handleRemoveImage(player.id)}
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+                {player.transformedImages.length > 0 && (
+                  <div className="absolute bottom-3 left-3 right-3 flex gap-2 justify-center">
+                    {player.transformedImages.slice(0, 3).map((img, idx) => (
+                      <button
+                        key={idx}
+                        onClick={() => setPlayer(prev => ({ ...prev, image: img }))}
+                        className="w-14 h-14 md:w-16 md:h-16 rounded-lg border-3 border-white/90 overflow-hidden hover:scale-125 transition-all duration-300 shadow-lg hover:shadow-xl hover:z-10"
+                      >
+                        <img src={img} alt={`Variant ${idx + 1}`} className="w-full h-full object-cover" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="flex flex-col items-center space-y-4 text-white/70">
+                <User size={72} />
+                <Upload size={36} />
+                <span className="text-base md:text-lg text-center px-4 font-medium">
+                  Drag & drop or click to upload
+                </span>
+              </div>
+            )}
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => handleFileSelect(e, player.id)}
+              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              style={{ display: player.image && !player.isProcessing ? 'none' : 'block' }}
+            />
+          </div>
+        </Card>
+      </div>
+    )
+  }
 
   return (
-    <div className="min-h-screen bg-white dark:bg-gray-950 transition-colors duration-200">
-      {/* Dark Mode Toggle */}
-      <div className="absolute top-4 right-4">
-        <Button
-          variant="outline"
-          size="icon"
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          className="rounded-full"
+    <div className="min-h-screen relative overflow-hidden">
+      {/* Background with video and gradient fallback */}
+      <div className="fixed inset-0 z-0">
+        {/* Gradient background (always visible) */}
+        <div className="absolute inset-0 bg-gradient-to-br from-orange-950 via-gray-900 to-blue-950" />
+        
+        {/* Video overlay (loads on top of gradient) */}
+        <video
+          autoPlay
+          loop
+          muted
+          playsInline
+          preload="auto"
+          className="absolute top-0 left-0 w-full h-full object-cover opacity-70"
         >
-          <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
-          <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
-          <span className="sr-only">Toggle theme</span>
-        </Button>
+          <source 
+            src="https://banana-profiles.sfo3.digitaloceanspaces.com/naruto-valley-background.mp4" 
+            type="video/mp4" 
+          />
+        </video>
+        
+        {/* Light overlay for content readability */}
+        <div className="absolute inset-0 bg-black/30" />
       </div>
 
-      <div className="min-h-screen flex items-center justify-center p-4">
-        <div className="w-full max-w-4xl">
-          <h1 className="text-4xl font-bold text-gray-900 dark:text-white text-center mb-8 text-balance">
-            Banana Shippuden
-          </h1>
+      {/* Content */}
+      <div className="relative z-10 min-h-screen">
+        {/* Dark Mode Toggle */}
+        <div className="absolute top-4 right-4 z-20">
+          <Button
+            variant="outline"
+            size="icon"
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            className="rounded-full bg-white/20 backdrop-blur-sm border-white/30 hover:bg-white/30"
+          >
+            <Sun className="h-5 w-5 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0 text-white" />
+            <Moon className="absolute h-5 w-5 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100 text-white" />
+            <span className="sr-only">Toggle theme</span>
+          </Button>
+        </div>
+
+        <div className="min-h-screen flex items-center justify-center p-4 lg:p-8">
+          <div className="w-full max-w-7xl">
+            {/* Title Text */}
+            <div className="flex flex-col items-center justify-center mb-10 relative z-10">
+              <h1 
+                className="text-5xl md:text-7xl lg:text-8xl font-black tracking-wider animate-title-glow"
+                style={{
+                  fontFamily: '"Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive, sans-serif',
+                  background: 'linear-gradient(135deg, #FBB03B 0%, #FACC15 25%, #FFD700 50%, #FB923C 75%, #FBB03B 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  textShadow: '0 0 30px rgba(251, 176, 59, 0.5)',
+                  textTransform: 'uppercase'
+                }}
+              >
+                BANANA
+              </h1>
+              <h2 
+                className="text-3xl md:text-5xl lg:text-6xl font-bold tracking-[0.3em] mt-2"
+                style={{
+                  fontFamily: '"Comic Sans MS", "Chalkboard SE", "Marker Felt", cursive, sans-serif',
+                  background: 'linear-gradient(135deg, #FB923C 0%, #FFD700 50%, #FBB03B 100%)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                  backgroundClip: 'text',
+                  textShadow: '0 0 25px rgba(251, 176, 59, 0.4)',
+                  filter: 'drop-shadow(0 3px 6px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 15px rgba(251, 146, 60, 0.3))',
+                  textTransform: 'uppercase'
+                }}
+              >
+                Shippuden
+              </h2>
+            </div>
 
           {/* Transform Button */}
           {player1.originalImage && player2.originalImage && player1.transformedImages.length === 0 && (
-            <div className="flex justify-center mb-8">
+            <div className="flex justify-center mb-12">
               <Button
                 onClick={handleTransformToNaruto}
                 disabled={isTransforming}
-                className="bg-orange-500 hover:bg-orange-600 text-white px-6 py-3 text-lg font-bold"
+                className="bg-gradient-to-r from-orange-500 to-red-500 hover:from-orange-600 hover:to-red-600 text-white px-8 py-4 text-xl font-bold rounded-xl shadow-xl transform transition-all duration-300 hover:scale-105"
               >
                 {isTransforming ? (
                   <>
-                    <Loader2 className="mr-2 h-5 w-5 animate-spin" />
+                    <Loader2 className="mr-3 h-6 w-6 animate-spin" />
                     Transforming to Shinobi...
                   </>
                 ) : (
                   <>
-                    <Swords className="mr-2 h-5 w-5" />
+                    <Swords className="mr-3 h-6 w-6" />
                     Transform to Naruto Characters
                   </>
                 )}
@@ -448,57 +477,44 @@ export default function BattleShowdown() {
             </div>
           )}
 
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-center">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 lg:gap-12 items-center place-items-center">
             {/* Player 1 */}
             {renderPlayerCard(player1, setPlayer1)}
 
-            {/* Battle Dice */}
-            <div className="flex flex-col items-center space-y-8">
-              <h3 className="text-xl font-bold text-gray-800 dark:text-gray-200 tracking-wide">
-                Ready to Battle?
-              </h3>
-              <button
-                onClick={handleBattle}
-                className="group relative p-8 transition-all duration-500 hover:scale-125 active:scale-110 focus:outline-none cursor-pointer"
-                disabled={isRolling || isTransforming}
-                aria-label="Roll the dice to start battle"
-              >
-                <DiceIcon 
-                  className={`h-40 w-40 md:h-48 md:w-48 lg:h-56 lg:w-56 transition-all duration-500 ${
-                    isRolling 
-                      ? 'text-transparent bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 bg-clip-text stroke-current' 
-                      : 'text-gray-800 dark:text-gray-200 group-hover:text-[#40dfaf] group-hover:drop-shadow-[0_0_35px_rgba(64,223,175,0.8)]'
-                  }`}
-                  isAnimating={isRolling}
-                />
-                {/* Pulsing glow effect */}
-                {!isRolling && (
-                  <div className="absolute inset-0 rounded-full opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                    <div className="absolute inset-0 rounded-full bg-[#40dfaf]/20 animate-ping" />
-                    <div className="absolute inset-0 rounded-full bg-[#40dfaf]/10 animate-ping animation-delay-200" />
-                  </div>
-                )}
-              </button>
-              <div className="text-center space-y-2">
-                <p className={`text-base font-semibold transition-all duration-300 ${
-                  isRolling 
-                    ? "text-transparent bg-gradient-to-r from-blue-500 to-purple-500 bg-clip-text animate-pulse" 
-                    : "text-gray-700 dark:text-gray-300"
-                }`}>
-                  {isRolling ? "Preparing for battle..." : "Click the dice to start battle!"}
+          {/* Battle Banana */}
+          <div className="flex flex-col items-center space-y-8">
+            <button
+              onClick={handleBattle}
+              className="group relative p-8 transition-all duration-500 hover:scale-110 hover:rotate-12 active:scale-95 focus:outline-none cursor-pointer"
+              disabled={isRolling || isTransforming}
+              aria-label="Spin the banana to start battle"
+            >
+              <BananaIcon 
+                className="transform transition-all duration-500 group-hover:scale-110"
+                isAnimating={isRolling}
+              />
+              {/* Pulsing glow effect */}
+              {!isRolling && (
+                <div className="absolute inset-0 rounded-full pointer-events-none">
+                  <div className="absolute inset-0 rounded-full bg-yellow-400/20 animate-ping" />
+                  <div className="absolute inset-0 rounded-full bg-orange-400/15 animate-ping animation-delay-200" />
+                </div>
+              )}
+            </button>
+            {isRolling && (
+              <div className="text-center">
+                <p className="text-sm text-white/70 animate-pulse">
+                  Creating battle stances...
                 </p>
-                {isRolling && (
-                  <p className="text-sm text-gray-500 dark:text-gray-400 animate-pulse">
-                    Creating battle stances...
-                  </p>
-                )}
               </div>
-            </div>
+            )}
+          </div>
 
             {/* Player 2 */}
             {renderPlayerCard(player2, setPlayer2)}
           </div>
         </div>
+      </div>
       </div>
     </div>
   )
