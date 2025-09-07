@@ -28,3 +28,6 @@ next-env.d.ts
 
 # DS store
 .DS_Store
+
+# Session storage for development
+.sessions/

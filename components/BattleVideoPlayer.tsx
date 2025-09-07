@@ -67,15 +67,25 @@ export default function BattleVideoPlayer({ battleData, onClose }: BattleVideoPl
       
       const result = await response.json()
       
-      if (result.success && result.requestId) {
-        console.log('📹 Video generation queued:', result.requestId)
-        setVideoRequestId(result.requestId)
-        setVideoProgress('Processing epic battle sequence...')
+      if (result.success && (result.sessionId || result.requestId)) {
+        const id = result.sessionId || result.requestId
+        
+        if (result.singleSegment) {
+          console.log('📹 Single-segment generation started (ffmpeg not available):', id)
+          setVideoProgress('Generating epic battle video...')
+        } else {
+          console.log('📹 Multi-segment generation started:', id, `(${result.totalSegments || 1} segments)`)
+          setVideoProgress(result.message || (result.totalSegments 
+            ? `Generating segment 1 of ${result.totalSegments}...`
+            : 'Processing epic battle sequence...'))
+        }
+        
+        setVideoRequestId(id)
         setVideoGenerationProgress(10) // Queued successfully
         // Start polling after 5 seconds
-        pollingTimeoutRef.current = setTimeout(() => checkVideoStatus(result.requestId), 5000)
+        pollingTimeoutRef.current = setTimeout(() => checkVideoStatus(id), 5000)
       } else {
-        throw new Error(result.error || 'Failed to start video generation')
+        throw new Error(result.error || result.details || 'Failed to start video generation')
       }
     } catch (error) {
       console.error('Failed to start video generation:', error)
@@ -86,34 +96,40 @@ export default function BattleVideoPlayer({ battleData, onClose }: BattleVideoPl
   }
 
   // Poll for video generation status
-  const checkVideoStatus = async (requestId: string) => {
+  const checkVideoStatus = async (id: string) => {
     try {
       console.log('🔍 Checking video status...')
-      
-      // Estimate progress based on elapsed time (2-3 minutes typical)
-      if (videoGenStartTime.current) {
-        const elapsed = Date.now() - videoGenStartTime.current
-        const estimatedDuration = 150000 // 2.5 minutes in milliseconds
-        const estimatedProgress = Math.min(95, Math.floor((elapsed / estimatedDuration) * 90) + 10)
-        setVideoGenerationProgress(estimatedProgress)
-      }
       
       const response = await fetch('/api/generate-video', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           action: 'status',
-          requestId
+          sessionId: id, // Try as sessionId first
+          requestId: id  // Also send as requestId for backward compatibility
         })
       })
       
       const result = await response.json()
-      console.log('Video status:', result.status)
+      console.log('Video status:', result.status, result.message || '')
       
       if (result.status === 'completed' && result.videoUrl) {
-        console.log('🎥 Video ready!')
-        setBattleVideo(result.videoUrl)
-        setVideoProgress('Video ready!')
+        console.log('🎥 Complete battle video ready!')
+        
+        // Check if we got multiple segments (fallback mode)
+        if (result.allSegmentUrls && result.allSegmentUrls.length > 1) {
+          console.log(`Received ${result.allSegmentUrls.length} video segments`)
+          // For now, just play the first segment
+          // In a full implementation, you could create a playlist
+          setBattleVideo(result.videoUrl)
+          
+          // Store all segments if you want to implement playlist later
+          // setVideoSegments(result.allSegmentUrls)
+        } else {
+          setBattleVideo(result.videoUrl)
+        }
+        
+        setVideoProgress('Epic battle complete!')
         setVideoGenerationProgress(100)
         setIsGeneratingVideo(false)
         // Transition to video screen after a moment
@@ -122,20 +138,67 @@ export default function BattleVideoPlayer({ battleData, onClose }: BattleVideoPl
           setProgress(100)
         }, 1000)
       } else if (result.status === 'error' || result.status === 'failed') {
-        console.error('Video generation failed:', result.error)
-        setVideoProgress('Video generation failed')
-        setVideoGenerationProgress(0)
-        setIsGeneratingVideo(false)
+        // Check if error is recoverable
+        if (result.recoverable && result.status === 'error') {
+          console.warn('Recoverable error:', result.error)
+          setVideoProgress(result.message || 'Retrying...')
+          // Continue polling for recoverable errors
+          pollingTimeoutRef.current = setTimeout(() => checkVideoStatus(id), 5000)
+        } else {
+          console.error('Video generation failed:', result.error)
+          setVideoProgress(result.error || 'Video generation failed')
+          setVideoGenerationProgress(0)
+          setIsGeneratingVideo(false)
+        }
+      } else if (result.status === 'processing') {
+        // Update progress with segment info
+        if (result.currentSegment && result.totalSegments) {
+          const progressText = result.message || `Generating segment ${result.currentSegment} of ${result.totalSegments}...`
+          setVideoProgress(progressText)
+          
+          // Show warnings if any
+          if (result.warning) {
+            console.warn('⚠️ Warning:', result.warning)
+          }
+          
+          // Calculate progress based on segments
+          const segmentProgress = ((result.currentSegment - 1) / result.totalSegments) * 100
+          // Add some progress for the current segment being processed
+          const estimatedCurrentSegmentProgress = 50 // Assume current segment is 50% done
+          const totalProgress = segmentProgress + (estimatedCurrentSegmentProgress / result.totalSegments)
+          setVideoGenerationProgress(Math.floor(totalProgress))
+        } else {
+          // Fallback for single segment or unknown progress
+          setVideoProgress(result.progress || result.message || 'Generating epic battle video...')
+          
+          // Estimate progress based on elapsed time for single segment
+          if (videoGenStartTime.current) {
+            const elapsed = Date.now() - videoGenStartTime.current
+            const estimatedDuration = 150000 // 2.5 minutes for single segment
+            const estimatedProgress = Math.min(95, Math.floor((elapsed / estimatedDuration) * 90) + 10)
+            setVideoGenerationProgress(estimatedProgress)
+          }
+        }
+        
+        // Continue polling
+        pollingTimeoutRef.current = setTimeout(() => checkVideoStatus(id), 5000)
       } else {
         // Still processing, update progress and poll again
-        setVideoProgress(result.progress || 'Generating epic battle video...')
-        pollingTimeoutRef.current = setTimeout(() => checkVideoStatus(requestId), 5000)
+        setVideoProgress(result.progress || result.message || 'Generating epic battle video...')
+        pollingTimeoutRef.current = setTimeout(() => checkVideoStatus(id), 5000)
       }
     } catch (error) {
       console.error('Error checking video status:', error)
-      setVideoProgress('Error checking video status')
-      setVideoGenerationProgress(0)
-      setIsGeneratingVideo(false)
+      // Retry on network errors
+      if (error instanceof Error && error.message.includes('fetch')) {
+        console.log('Network error, retrying in 5 seconds...')
+        setVideoProgress('Connection issue, retrying...')
+        pollingTimeoutRef.current = setTimeout(() => checkVideoStatus(id), 5000)
+      } else {
+        setVideoProgress('Error checking video status')
+        setVideoGenerationProgress(0)
+        setIsGeneratingVideo(false)
+      }
     }
   }
 
@@ -323,11 +386,33 @@ export default function BattleVideoPlayer({ battleData, onClose }: BattleVideoPl
                   <div className="text-center">
                     <div className="text-yellow-400 text-xs font-medium">Generating Epic Battle Video</div>
                     <div className="text-gray-400 text-xs mt-1">
-                      {videoGenerationProgress < 30 ? 'Preparing warriors...' :
+                      {videoProgress.includes('segment') ? videoProgress :
+                       videoGenerationProgress < 30 ? 'Preparing warriors...' :
                        videoGenerationProgress < 60 ? 'Choreographing battle...' :
                        videoGenerationProgress < 90 ? 'Adding special effects...' :
                        'Finalizing epic sequence...'}
                     </div>
+                    {videoProgress.includes('segment') && (
+                      <div className="flex gap-1 mt-2 justify-center">
+                        {[1, 2, 3, 4, 5].map((seg) => {
+                          const match = videoProgress.match(/segment (\d+) of (\d+)/i)
+                          const currentSeg = match ? parseInt(match[1]) : 0
+                          const totalSegs = match ? parseInt(match[2]) : 5
+                          if (seg > totalSegs) return null
+                          return (
+                            <div
+                              key={seg}
+                              className={`w-1.5 h-1.5 rounded-full transition-colors ${
+                                seg < currentSeg ? 'bg-green-500' :
+                                seg === currentSeg ? 'bg-yellow-400 animate-pulse' :
+                                'bg-gray-600'
+                              }`}
+                              title={`Segment ${seg}`}
+                            />
+                          )
+                        })}
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
